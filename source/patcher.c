@@ -203,7 +203,7 @@ static void patch_CfgGetLanguage(u8 *code, u32 size, u8 languageId, u8 *CFGU_Get
                     }
                     while(i < 2 && !found && calledFunction[3] == 0xEA);
 
-                    if(found) 
+                    if(found)
                     {
                         *((u32 *)instr - 1)  = 0xE3A00000 | languageId; // mov    r0, sp                 => mov r0, =languageId
                         *(u32 *)instr        = 0xE5CD0000;              // bl     CFGU_GetConfigInfoBlk2 => strb r0, [sp]
@@ -280,13 +280,13 @@ static int get_clock_config()
         FSFILE_Close(file);
         cfg[0] -= '0';
     }
-    
+
     return cfg[0];
 }
 
 
 void patch_code(u64 progid, u8 *code, u32 size)
-{	
+{
     u32 tid_high = (progid & 0xFFFFFFF000000000LL) >> 0x24;
 
 	replace_code(progid, code, size); // WARNING: IT REPLACES SYSTEM TITLES' CODE AS WELL
@@ -304,11 +304,25 @@ void patch_code(u64 progid, u8 *code, u32 size)
                             region_free_patch[]   = {0x01, 0x00, 0xA0, 0xE3, 0x1E, 0xFF, 0x2F, 0xE1};
 
             //Patch SMDH region checks
-            patch_memory(code, size, 
-                region_free_pattern, 
-                sizeof(region_free_pattern), -16, 
-                region_free_patch, 
+            patch_memory(code, size,
+                region_free_pattern,
+                sizeof(region_free_pattern), -16,
+                region_free_patch,
                 sizeof(region_free_patch), 1);
+
+            break;
+        }
+
+        case 0x0004013000003202LL: // FRIENDS
+        {
+            static const u8 friend_module_pattern[] = {0x42, 0xE0, 0x1E, 0xFF};
+
+            u8 recentFpdVer = 10;
+
+            u8 *offset = memsearch(code, friend_module_pattern, text_size, sizeof(pattern));
+
+            // Allow online access to work with old friends modules
+            if(offset[0xA] < recentFpdVer) offset[0xA] = recentFpdVer;
 
             break;
         }
@@ -316,12 +330,12 @@ void patch_code(u64 progid, u8 *code, u32 size)
         case 0x0004013000001702LL: // CFG
         {
             static const u8 secureinfo_sig_check_pattern[] = {0x06, 0x46, 0x10, 0x48, 0xFC},
-                            secureinfo_sig_check_patch[] = {0x00, 0x26};
-            
-            patch_memory(code, size, 
-                secureinfo_sig_check_pattern, 
-                sizeof(secureinfo_sig_check_pattern), 0, 
-                secureinfo_sig_check_patch, 
+                            secureinfo_sig_check_patch[]   = {0x00, 0x26};
+
+            patch_memory(code, size,
+                secureinfo_sig_check_pattern,
+                sizeof(secureinfo_sig_check_pattern), 0,
+                secureinfo_sig_check_patch,
                 sizeof(secureinfo_sig_check_patch), 1);
 
             break;
@@ -336,45 +350,80 @@ void patch_code(u64 progid, u8 *code, u32 size)
             static const u8 stub[] = {0x00, 0x00, 0xA0, 0xE3, 0x1E, 0xFF, 0x2F, 0xE1}; // mov r0, #0; bx lr
 
             //Disable CRR0 signature (RSA2048 with SHA256) check
-            patch_memory(code, size, 
-                sigCheckPattern, 
-                sizeof(sigCheckPattern), 0, 
+            patch_memory(code, size,
+                sigCheckPattern,
+                sizeof(sigCheckPattern), 0,
                 stub,
                 sizeof(stub), 1);
-            
+
             //Disable CRO0/CRR0 SHA256 hash checks (section hashes, and hash table)
-            patch_memory(code, size, 
-                sha256ChecksPattern1, 
-                sizeof(sha256ChecksPattern1), 0, 
+            patch_memory(code, size,
+                sha256ChecksPattern1,
+                sizeof(sha256ChecksPattern1), 0,
                 stub,
                 sizeof(stub), 1);
-            
-            patch_memory(code, size, 
-                sha256ChecksPattern2, 
-                sizeof(sha256ChecksPattern2), 0, 
+
+            patch_memory(code, size,
+                sha256ChecksPattern2,
+                sizeof(sha256ChecksPattern2), 0,
                 stub,
                 sizeof(stub), 1);
 
             break;
         }
 
+        case 0x0004003000008A02LL: // ErrDisp
+        {
+            static const u8 errDisp_pattern[]  = {0x00, 0xD0, 0xE5, 0xDB},
+                            errDisp_pattern2[] = {0x14, 0x00, 0xD0, 0xE5, 0x01},
+                            errDisp_patch[]    = {0x00, 0x00, 0xA0, 0xE3};
+
+            patch_memory(code, size,
+                errDisp_pattern,
+                sizeof(errDisp_pattern), -1,
+                errDisp_patch, sizeof(errDisp_patch), 1);
+
+            patch_memory(code, size,
+                errDisp_pattern2,
+                sizeof(errDisp_pattern2), 0,
+                errDisp_patch,
+                sizeof(errDisp_patch), 3);
+
+            break;
+        }
+
+        case 0x0004013000002802LL: // DLP
+        {
+            static const u8 dlp_pattern[] = {0x0C, 0xAC, 0xC0, 0xD8},
+                            dlp_patch[]   = {0x00, 0x00, 0x00, 0x00};
+
+            // Patch DLP region checks
+            patch_memory(code, size,
+                dlp_pattern,
+                sizeof(dlp_pattern), 0,
+                dlp_patch,
+                sizeof(dlp_patch), 1);
+
+            break;
+        }
+
         case 0x0004013000002C02LL: // NIM
         {
-            static const u8 block_updates_pattern[] = {0x25, 0x79, 0x0B, 0x99},
-                            block_updates_patch[] = {0xE3, 0xA0},
+            static const u8 block_updates_pattern[]       = {0x25, 0x79, 0x0B, 0x99},
+                            block_updates_patch[]         = {0xE3, 0xA0},
                             block_eshop_updates_pattern[] = {0x30, 0xB5, 0xF1, 0xB0},
-                            block_eshop_updates_patch[] = {0x00, 0x20, 0x08, 0x60, 0x70, 0x47};
+                            block_eshop_updates_patch[]   = {0x00, 0x20, 0x08, 0x60, 0x70, 0x47};
 
-            patch_memory(code, size, 
-                block_updates_pattern, 
-                sizeof(block_updates_pattern), 0, 
-                block_updates_patch, 
+            patch_memory(code, size,
+                block_updates_pattern,
+                sizeof(block_updates_pattern), 0,
+                block_updates_patch,
                 sizeof(block_updates_patch), 1);
 
-            patch_memory(code, size, 
-                block_eshop_updates_pattern, 
-                sizeof(block_eshop_updates_pattern), 0, 
-                block_eshop_updates_patch, 
+            patch_memory(code, size,
+                block_eshop_updates_pattern,
+                sizeof(block_eshop_updates_pattern), 0,
+                block_eshop_updates_patch,
                 sizeof(block_eshop_updates_patch), 1);
 
             break;
@@ -405,9 +454,9 @@ void patch_code(u64 progid, u8 *code, u32 size)
                             stop_cart_updates_patch[]   = {0x0B, 0x18, 0x21, 0xC8};
 
             //Disable updates from foreign carts (makes carts region-free)
-            patch_memory(code, size, 
-                stop_cart_updates_pattern, 
-                sizeof(stop_cart_updates_pattern), 0, 
+            patch_memory(code, size,
+                stop_cart_updates_pattern,
+                sizeof(stop_cart_updates_pattern), 0,
                 stop_cart_updates_patch,
                 sizeof(stop_cart_updates_patch), 2);
 
@@ -416,16 +465,17 @@ void patch_code(u64 progid, u8 *code, u32 size)
 			if (!clock_cfg)
 				break;
 
-			static const u8 cfg_N3dsCpuPattern[] = {0x40, 0xA0, 0xE1, 0x07, 0x00};
+			static const u8 cfg_N3dsCpuPattern[] = {0x0C, 0x00, 0x94, 0x15};
 
-			u8 *cfg_N3dsCpuLoc = memsearch(code, cfg_N3dsCpuPattern, size, sizeof(cfg_N3dsCpuPattern));
+            u32 *cfg_N3dsCpuLoc = (u32 *)memsearch(code, cfg_N3dsCpuPattern, size, sizeof(cfg_N3dsCpuPattern));
 
 			if(cfg_N3dsCpuLoc != NULL)
 			{
-				*(u32 *)(cfg_N3dsCpuLoc + 3) = 0xE1A00000;
-				*(u32 *)(cfg_N3dsCpuLoc + 0x1F) = (clock_cfg  == 2) ? 0xE3A00003 : 0xE3A00000;
+                *(cfg_N3dsCpuLoc - 4) = *(cfg_N3dsCpuLoc - 3);
+                *(cfg_N3dsCpuLoc - 3) = *(cfg_N3dsCpuLoc - 1);
+                memcpy(cfg_N3dsCpuLoc - 1, cfg_N3dsCpuLoc, 16);
+                *(cfg_N3dsCpuLoc + 3) = 0xE3800000 | clock_cfg;
 			}
-			break;
         }
 	}
 
@@ -445,5 +495,5 @@ void patch_code(u64 progid, u8 *code, u32 size)
 				if(region_id != 0xFF) patch_CfgGetRegion(code, size, region_id, CFGUHandleOffset); // Only patch if region isn't WLD yet
 			}
 		}
-	}	
+	}
 }
