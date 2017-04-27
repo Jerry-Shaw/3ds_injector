@@ -313,10 +313,24 @@ void patch_code(u64 progid, u8 *code, u32 size)
             break;
         }
 
+        case 0x0004013000003202LL: // FRIENDS
+        {
+            static const u8 friend_module_pattern[] = {0x42, 0xE0, 0x1E, 0xFF};
+
+            u8 recentFpdVer = 10;
+
+            u8 *offset = memsearch(code, friend_module_pattern, text_size, sizeof(pattern));
+
+            // Allow online access to work with old friends modules
+            if(offset[0xA] < recentFpdVer) offset[0xA] = recentFpdVer;
+
+            break;
+        }
+
         case 0x0004013000001702LL: // CFG
         {
             static const u8 secureinfo_sig_check_pattern[] = {0x06, 0x46, 0x10, 0x48, 0xFC},
-                            secureinfo_sig_check_patch[] = {0x00, 0x26};
+                            secureinfo_sig_check_patch[]   = {0x00, 0x26};
 
             patch_memory(code, size,
                 secureinfo_sig_check_pattern,
@@ -358,12 +372,47 @@ void patch_code(u64 progid, u8 *code, u32 size)
             break;
         }
 
+        case 0x0004003000008A02LL: // ErrDisp
+        {
+            static const u8 errDisp_pattern[]  = {0x00, 0xD0, 0xE5, 0xDB},
+                            errDisp_pattern2[] = {0x14, 0x00, 0xD0, 0xE5, 0x01},
+                            errDisp_patch[]    = {0x00, 0x00, 0xA0, 0xE3};
+
+            patch_memory(code, size,
+                errDisp_pattern,
+                sizeof(errDisp_pattern), -1,
+                errDisp_patch, sizeof(errDisp_patch), 1);
+
+            patch_memory(code, size,
+                errDisp_pattern2,
+                sizeof(errDisp_pattern2), 0,
+                errDisp_patch,
+                sizeof(errDisp_patch), 3);
+
+            break;
+        }
+
+        case 0x0004013000002802LL: // DLP
+        {
+            static const u8 dlp_pattern[] = {0x0C, 0xAC, 0xC0, 0xD8},
+                            dlp_patch[]   = {0x00, 0x00, 0x00, 0x00};
+
+            // Patch DLP region checks
+            patch_memory(code, size,
+                dlp_pattern,
+                sizeof(dlp_pattern), 0,
+                dlp_patch,
+                sizeof(dlp_patch), 1);
+
+            break;
+        }
+
         case 0x0004013000002C02LL: // NIM
         {
-            static const u8 block_updates_pattern[] = {0x25, 0x79, 0x0B, 0x99},
-                            block_updates_patch[] = {0xE3, 0xA0},
+            static const u8 block_updates_pattern[]       = {0x25, 0x79, 0x0B, 0x99},
+                            block_updates_patch[]         = {0xE3, 0xA0},
                             block_eshop_updates_pattern[] = {0x30, 0xB5, 0xF1, 0xB0},
-                            block_eshop_updates_patch[] = {0x00, 0x20, 0x08, 0x60, 0x70, 0x47};
+                            block_eshop_updates_patch[]   = {0x00, 0x20, 0x08, 0x60, 0x70, 0x47};
 
             patch_memory(code, size,
                 block_updates_pattern,
