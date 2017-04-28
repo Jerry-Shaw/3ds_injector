@@ -10,7 +10,7 @@ TOPDIR ?= $(CURDIR)
 MAKEROM ?= makerom
 include $(DEVKITARM)/3ds_rules
 
-PYTHON = python3
+PYTHON = py -3
 # If you have python 2.x just update you dinosaur :P
 
 #---------------------------------------------------------------------------------
